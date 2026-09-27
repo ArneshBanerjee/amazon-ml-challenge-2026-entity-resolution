@@ -9,12 +9,15 @@ what was tried.
 |---|---|---|
 | 1. M3 | single run, v2 candidates, 2 cross-encoders, two-stage stacker, expected-F0.5 selection | 0.987978 |
 | 2. M5 | M3 with a logit offset for France (+3.19) so French matches per S1 equal the US / India rate | 0.986 (worse) |
-| 3. **F1 (best)** | **ensemble of two runs for US and India, M3 rows for France** (`run_ensemble.sh`, `splice.py`) | **best of the three** (exact value not recorded here) |
+| 3. F1 | ensemble of two runs for US and India, M3 rows for France | 0.988023 |
+| 4. **G1 (best)** | **F1, but France = only the pairs both runs accept** (`run_ensemble.sh`, `splice.py --mode intersect`) | **0.9881** |
 
 For reference on the day: top team 0.991483, 10th place 0.990282.
 
-**Best file: F1.** It is the `output/matching_results.tsv` in the final submission zip. Compared with
-M3 it changes 6,009 US / India rows and no French rows.
+**Best file: G1.** Compared with F1 it removes the French pairs that only one of the two runs accepts
+(11,125 French rows change). The gain implies those pairs were about 73% correct, close to the F0.5
+break-even of about 78%, so a stricter French rule is unlikely to gain much more. G2 (France = pairs
+either run accepts) is the opposite variant, not uploaded.
 
 ## Holdout scores (train split C, never used for training)
 

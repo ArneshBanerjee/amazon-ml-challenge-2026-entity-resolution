@@ -20,6 +20,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--labelled", required=True, help="output folder used for countries present in train")
     ap.add_argument("--unlabelled", required=True, help="output folder used for countries absent from train")
+    ap.add_argument("--unlabelled2", default="", help="second single-run output folder (for --mode intersect / union)")
+    ap.add_argument("--mode", default="single", choices=["single", "intersect", "union"],
+                    help="unlabelled countries: rows of one run, pairs both runs accept, or pairs either run accepts")
     ap.add_argument("--out-dir", required=True)
     a = ap.parse_args()
     train_c = set(pl.read_parquet(ART / "records_train.parquet", columns=["country"])["country"].unique().to_list())
@@ -29,6 +32,15 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     m_lab = read_tsv(Path(a.labelled) / "matching_results.tsv")
     m_unl = read_tsv(Path(a.unlabelled) / "matching_results.tsv")
+    if a.mode != "single":
+        def pairs(df):
+            return (df.with_columns(pl.col("matched_entity_ids").str.split(",")).explode("matched_entity_ids")
+                    .filter(pl.col("matched_entity_ids") != ""))
+        p1 = pairs(m_unl)
+        p2 = pairs(read_tsv(Path(a.unlabelled2) / "matching_results.tsv"))
+        pp = p1.join(p2, on=["source1_entity_id", "matched_entity_ids"]) if a.mode == "intersect" else pl.concat([p1, p2]).unique()
+        m_unl = pp.group_by("source1_entity_id").agg(pl.col("matched_entity_ids").sort().str.join(","))
+        log("unlabelled countries:", a.mode, "pairs", pp.height)
     m = (s1.join(m_lab, on="source1_entity_id", how="left")
          .join(m_unl, on="source1_entity_id", how="left", suffix="_u")
          .select("source1_entity_id",
@@ -36,6 +48,8 @@ def main():
                  .fill_null("").alias("matched_entity_ids")))
     c_lab = read_tsv(Path(a.labelled) / "candidate_pairs.tsv")
     c_unl = read_tsv(Path(a.unlabelled) / "candidate_pairs.tsv")
+    if a.mode != "single":
+        c_unl = pl.concat([c_unl, read_tsv(Path(a.unlabelled2) / "candidate_pairs.tsv")])
 
     def explode(df):
         return (df.with_columns(pl.col("candidate_entity_ids").str.split(","))
