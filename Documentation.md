@@ -10,12 +10,12 @@
 
 We treat the task as "for every Source 2 / Source 3 record, find its one Source 1 entity, or none".
 Candidates come from a fine-tuned multilingual bi-encoder searched in both directions and in four
-views, then a small LightGBM pruning model cuts them to **{{CPS}} candidates per S1 at {{BREC}} pair
+views, then a small LightGBM pruning model cuts them to **6.2 candidates per S1 at 99.85% pair
 recall**. A two-stage LightGBM stacker combines string features, two cross-encoders and
 group-consistency features. Two independent training runs of the whole pipeline are averaged. A
-one-to-one assignment and a per-entity set choice that maximizes expected F0.5 give the final lists. Holdout macro F0.5 is **{{C1}}** (tuning part) and **{{C2}}**
-(untouched part). For France, which has no labels, address and vocabulary maps are mined from our own
-confident test predictions.
+one-to-one assignment and a per-entity set choice that maximizes expected F0.5 give the final lists. Holdout macro F0.5 is **0.99254** (tuning part) and **0.99219**
+(untouched part). For France, which has no labels, an optional step mines address and vocabulary maps from our own
+confident test predictions (tested, not used for the submitted files).
 
 ---
 
@@ -88,7 +88,7 @@ holdout is not optimistic because of the neural models.
   4. A LightGBM pruning model trained on split B with the cosine of every view, both ranks of every
      view, four fast rapidfuzz scores and rank / gap context. Pairs with score >= 0.002 are kept, at
      most 15 per S1. This set is `candidate_pairs.tsv` and is exactly what the matcher scores.
-- **Candidate pairs generated:** {{TEST_CANDS}} on test ({{TEST_CPS}} per S1).
+- **Candidate pairs generated:** 11,313,782 on test (6.5 per S1).
 - **How we ensured true matches were not lost:** union of views and directions before pruning (C1
   pair recall 99.92% at 58 candidates per S1), then the pruning threshold is chosen on C1 for 99.8%
   pair recall. Recall against candidate count on C1:
@@ -147,7 +147,7 @@ match" beats the best non-empty set, which handles singletons directly. We compa
 threshold, an approximate and an exact (Poisson-binomial) expected F0.5; the choice is made on C1
 (they differ by less than 0.0001).
 
-**Country without labels (France).** After a first full test pass, confident French pairs
+**Country without labels (France), optional step (UNLABELED_STEP=1, not used for the submitted files).** After a first full test pass, confident French pairs
 (probability >= 0.98 and a margin of 0.9 over the next S1; 792k pairs) are used to mine French
 address maps with the same miner as for train: components that are frequent and present on only one
 side of most confident pairs are treated as optional (the three regions and four departments), and
@@ -161,7 +161,7 @@ pairs had an address token-set similarity below 90; after it 1.8%.
 
 ## 5. Results & Error Analysis
 
-- **F_0.5 Score (macro):** {{RESULTS}}
+- **F_0.5 Score (macro):** 0.99254 on C1 and 0.99219 on the untouched C2 (US 0.9917 / 0.9914, India 0.9937 / 0.9934), micro precision 0.9993, micro recall 0.977. First full model on the public leaderboard: 0.98798.
 - **Common false positives (wrong merges):** distractors that are the S1 name plus a legal form
   (Inc, Corp, LLC) at the same address. True records get an added legal form just as often, and
   sibling records share it no more often for true records than for distractors (4.2% vs 4.0%), so
@@ -175,7 +175,12 @@ pairs had an address token-set similarity below 90; after it 1.8%.
 
 Holdout (macro F0.5):
 
-{{MILESTONES}}
+| Stage | C1 | C2 |
+|---|---|---|
+| Baseline: pretrained e5 kNN, rapidfuzz features, LightGBM | 0.97784 | 0.97823 |
+| Fine-tuned bi-encoder blocking, pruning, 2 cross-encoders, stacker | 0.99211 | 0.99198 |
+| + stage-2 group features, one-to-one, expected F0.5 | 0.99235 | 0.99207 |
+| Average of two independent runs (submitted) | 0.99254 | 0.99219 |
 
 Things we tried that did not help on the holdout: a France-adapted cross-encoder trained on
 pseudo-labels (0.99236, same), ambiguity counts (how many S1 share the address or name, 0.99231, same),
