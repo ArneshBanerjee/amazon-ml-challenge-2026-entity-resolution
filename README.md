@@ -75,5 +75,7 @@ python3 utils/validate_submission.py --matching /path/to/output/matching_results
 | `evaluate.py` | Exact macro F0.5 (singletons included), blocking recall and candidates per S1. |
 | `analyze.py`, `blockstats.py`, `transfer.py` | Error analysis and checks used during development (not needed for the outputs). |
 
+See `RESULTS.md` for the leaderboard history, which submission scored best, and open problems.
+
 Settings such as the data and artifact folders can be changed with the environment variables
 `BER_DATA`, `BER_ART` and `BER_ROOT` (see `src/common.py`).
