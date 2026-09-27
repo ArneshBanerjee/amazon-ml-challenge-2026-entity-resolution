@@ -16,5 +16,7 @@ BER_SEED=1 BER_ART="$ROOT/artifacts_run2" bash run_all.sh "$DATA" "$ROOT/artifac
 
 export BER_DATA="$DATA" BER_ART="$ROOT/artifacts"
 $PY ensemble.py --runs "$ROOT/artifacts,$ROOT/artifacts_run2" --pred s2_v2 --cand v2 --out ens
-$PY select_sets.py --pred ens --cand ens --out-dir "$OUT"
+$PY select_sets.py --pred ens --cand ens --out-dir "$ROOT/artifacts/output_ensemble"
+# countries in train: ensemble rows; countries without labels (France): run-1 rows (see splice.py)
+$PY splice.py --labelled "$ROOT/artifacts/output_ensemble" --unlabelled "$ROOT/artifacts/output_single_run" --out-dir "$OUT"
 echo "done: $OUT/matching_results.tsv $OUT/candidate_pairs.tsv"

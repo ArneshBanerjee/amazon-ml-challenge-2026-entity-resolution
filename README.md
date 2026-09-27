@@ -24,7 +24,9 @@ uv pip install --python .venv/bin/python -r requirements.txt \
 
 ## Run
 
-The submitted files average two independent runs of the pipeline:
+The submitted files come from two independent runs of the pipeline: for countries present in train the
+stage-2 scores of both runs are averaged; for countries without labels (France) the rows of run 1 are
+kept (see `splice.py` and the documentation for why):
 
 ```bash
 cd business_entity_resolution
@@ -68,6 +70,7 @@ python3 utils/validate_submission.py --matching /path/to/output/matching_results
 | `stack.py`, `group.py` | Two-stage LightGBM stacker trained on split B (4-fold, out-of-fold predictions). Stage 2 adds group features: agreement of a record with the other confident records of the same S1. |
 | `pseudo.py` | For test countries without labels (France): takes confident test pairs from the first pass and mines address maps (optional region and department components, spelling aliases) with the same miner used on train. The test side is then normalized again and scored with the unchanged models. |
 | `ensemble.py` | Averages the stage-2 logits of several runs (a pair missing from a run counts as 1e-4), candidate set = union of the runs' candidate sets. |
+| `splice.py` | Final file: ensemble rows for countries present in train, single-run rows for countries without labels; candidate file = union of both candidate files. |
 | `select_sets.py` | One-to-one assignment (each record goes to at most one S1), isotonic calibration on C1, per-S1 set choice that maximizes expected F0.5, writes both output files. |
 | `evaluate.py` | Exact macro F0.5 (singletons included), blocking recall and candidates per S1. |
 | `analyze.py`, `blockstats.py`, `transfer.py` | Error analysis and checks used during development (not needed for the outputs). |

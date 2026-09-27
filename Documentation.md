@@ -12,8 +12,10 @@ We treat the task as "for every Source 2 / Source 3 record, find its one Source 
 Candidates come from a fine-tuned multilingual bi-encoder searched in both directions and in four
 views, then a small LightGBM pruning model cuts them to **6.2 candidates per S1 at 99.85% pair
 recall**. A two-stage LightGBM stacker combines string features, two cross-encoders and
-group-consistency features. Two independent training runs of the whole pipeline are averaged. A
-one-to-one assignment and a per-entity set choice that maximizes expected F0.5 give the final lists. Holdout macro F0.5 is **0.99254** (tuning part) and **0.99219**
+group-consistency features. A one-to-one assignment and a per-entity set choice that maximizes
+expected F0.5 give the final lists. For US and India the scores of two independent training runs are
+averaged; for France (no labels) a single run is used, because leaderboard evidence showed that the
+extra French pairs an ensemble accepts are net harmful. Holdout macro F0.5 is **0.99254** (tuning part) and **0.99219**
 (untouched part). For France, which has no labels, an optional step mines address and vocabulary maps from our own
 confident test predictions (tested, not used for the submitted files).
 
@@ -137,7 +139,14 @@ For comparison, the untrained e5 model gives 96.4% at 4.7 candidates (reverse to
   probability 1e-4 there); the candidate file is the union of both runs' candidate sets, which is the
   set the ensemble scores. Two runs give 0.99226 and 0.99235 on C1 alone and 0.99254 averaged. The
   gain is larger where single runs disagree: on French test entities two runs differ on 8% of the
-  output rows, against 0.8% for US and India.
+  output rows, against 0.8% for US and India. On the holdout, where the ensemble and a single run
+  disagree, the ensemble is right for 595 entities and the single run for 305; the 95% bootstrap
+  interval of the gain is [+0.00011, +0.00024].
+- France is taken from a single run. On the leaderboard, adding the French pairs just below the
+  acceptance boundary (a logit offset that brought French matches per entity to the US / India rate)
+  lowered the score from 0.98798 to 0.986, so those pairs are only about half correct. 97% of the extra
+  French pairs the ensemble accepts are among them, so for the country without labels we keep the
+  single-run output (`splice.py`).
 - All models are MIT or Apache 2.0 and far below 8B parameters.
 
 **Threshold selection method:** one-to-one assignment (each record kept only for its highest-scoring
@@ -161,7 +170,7 @@ pairs had an address token-set similarity below 90; after it 1.8%.
 
 ## 5. Results & Error Analysis
 
-- **F_0.5 Score (macro):** 0.99254 on C1 and 0.99219 on the untouched C2 (US 0.9917 / 0.9914, India 0.9937 / 0.9934), micro precision 0.9993, micro recall 0.977. First full model on the public leaderboard: 0.98798.
+- **F_0.5 Score (macro):** holdout (US and India, the rows the ensemble decides) 0.99254 on C1 and 0.99219 on the untouched C2 (US 0.9917 / 0.9914, India 0.9937 / 0.9934), micro precision 0.9993, micro recall 0.977. First full model on the public leaderboard: 0.98798.
 - **Common false positives (wrong merges):** distractors that are the S1 name plus a legal form
   (Inc, Corp, LLC) at the same address. True records get an added legal form just as often, and
   sibling records share it no more often for true records than for distractors (4.2% vs 4.0%), so
@@ -180,7 +189,7 @@ Holdout (macro F0.5):
 | Baseline: pretrained e5 kNN, rapidfuzz features, LightGBM | 0.97784 | 0.97823 |
 | Fine-tuned bi-encoder blocking, pruning, 2 cross-encoders, stacker | 0.99211 | 0.99198 |
 | + stage-2 group features, one-to-one, expected F0.5 | 0.99235 | 0.99207 |
-| Average of two independent runs (submitted) | 0.99254 | 0.99219 |
+| Average of two independent runs (submitted for US and India) | 0.99254 | 0.99219 |
 
 Things we tried that did not help on the holdout: a France-adapted cross-encoder trained on
 pseudo-labels (0.99236, same), ambiguity counts (how many S1 share the address or name, 0.99231, same),
@@ -224,7 +233,7 @@ PY=$PWD/.venv/bin/python bash src/run_all.sh /path/to/student_resource/dataset /
 Stages: `load.py` (TSV to parquet), `splits.py`, `normalize.py` (rules plus maps mined from split-A
 pairs), `train_biencoder.py` / `encode.py` / `knn.py` (retrieval), `block.py` / `prune.py` (candidates),
 `features.py` / `featurize.py`, `cross.py` (cross-encoders), `stack.py` / `group.py` (stacker),
-`pseudo.py` (maps for countries without labels), `ensemble.py` (average of runs), `select_sets.py`
+`pseudo.py` (maps for countries without labels), `ensemble.py` (average of runs), `splice.py` (final rows by country), `select_sets.py`
 (one-to-one, calibration, set selection, output files), `evaluate.py` (metric). `run_all.sh` is one
 complete run; `run_ensemble.sh` runs it twice (seeds 0 and 1) and averages them. The README has a
 table of all scripts.
