@@ -1,0 +1,11 @@
+artifacts/
+artifacts_run2/
+logs/
+output/
+.venv/
+__pycache__/
+*.pyc
+*.parquet
+*.npy
+*.tsv
+*.zip
