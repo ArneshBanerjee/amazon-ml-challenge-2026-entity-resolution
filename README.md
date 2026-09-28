@@ -1,22 +1,92 @@
-# Business Entity Resolution (ML Challenge 2026)
+# Amazon ML Challenge 2026: Business Entity Resolution
 
-For every Source 1 business, find the matching Source 2 and Source 3 records.
-The pipeline goes from the raw TSV files to `output/matching_results.tsv` and
-`output/candidate_pairs.tsv`, using only the provided train and test files.
+My solution to the Business Entity Resolution task of the Amazon ML Challenge 2026.
+
+The task: business records come from three independent sources with no shared IDs. Source 1 is a
+clean reference list. For every Source 1 business, find every record in Source 2 and Source 3 that
+refers to the same real business. Names and addresses are noisy (typos, abbreviations, reordered
+address parts, names in Indian scripts, missing fields), and many records are near copies of a real
+business that belong to nobody. The test set also contains a country (France) that never appears in
+the training data.
+
+Scoring is F0.5 per Source 1 entity, averaged over all entities, so a wrong match costs more than a
+missed one. The size of the candidate set produced by blocking was also part of the final review.
+
+## Results
+
+| | Score |
+|---|---|
+| Public leaderboard, macro F0.5 | **0.9881** |
+| Holdout (train entities never used for training), tuning part | 0.99254 |
+| Holdout, untouched part | 0.99219 |
+| Blocking recall on the holdout, one run | 99.82% of true pairs, 5.8 candidates per entity |
+
+The holdout covers US and India only, since France has no labels. The gap between the holdout and
+the leaderboard is mostly France (see [Limitations](#limitations)).
+
+## How it works
+
+```mermaid
+flowchart LR
+    A[Raw TSVs] --> B[Normalize<br/>transliterate, clean,<br/>mined alias maps]
+    B --> C[Bi-encoder kNN<br/>4 views, both directions]
+    C --> D[Pruning model<br/>~6 candidates per entity]
+    D --> E[Features +<br/>2 cross-encoders]
+    E --> F[2-stage LightGBM<br/>with group features]
+    F --> G[One-to-one +<br/>expected F0.5 sets]
+```
+
+1. **Normalization.** Unicode cleanup, transliteration of Indian scripts to Latin, removal of junk
+   such as `-- `, `| www.x.com` and `null`, legal forms (LLC, Pvt Ltd, SARL) split into their own
+   field, and address cleanup. Maps for native-script words, state names and street abbreviations are
+   mined from matched training pairs, not written by hand.
+2. **Candidate generation.** `multilingual-e5-small` is fine-tuned as a bi-encoder in two rounds (in-batch
+   negatives, then mined hard negatives). Every record is encoded in four views (full record, name only,
+   address only, first-round model), and exact GPU kNN runs inside each country in both directions:
+   entity to records, and record to entities. A small LightGBM model then cuts the union to about 6
+   candidates per entity. Its output is `candidate_pairs.tsv`.
+3. **Matching.** For every candidate pair: rapidfuzz string scores on names, core names and addresses,
+   idf-weighted token overlap, house number and phone checks, bi-encoder cosines, and scores from two
+   `mdeberta-v3-base` cross-encoders (one on normalized text, one on raw text). A LightGBM stacker
+   combines them. A second stage adds group features: does this record agree with the other confident
+   records of the same entity, and how strongly does a different entity compete for it?
+4. **Final sets.** In the training data, every Source 2 / Source 3 record belongs to at most one
+   entity, so each record is kept only for the entity where it scores highest. Probabilities are
+   calibrated (isotonic), and for each entity the pipeline picks the top-k set, empty set included,
+   with the highest expected F0.5.
+5. **Two runs.** The whole pipeline is trained twice with different seeds. For US and India the two
+   runs' scores are averaged. For France the output keeps only the pairs that both runs accept.
+
+The full write-up, with the data analysis, feature list and error analysis, is in
+[Documentation.md](Documentation.md). Scores from the competition are in [RESULTS.md](RESULTS.md).
+
+## Data
+
+The dataset is not included. It comes from the competition. The code expects this layout:
+
+```
+dataset/
+├── train/  train_source1.tsv  train_source2.tsv  train_source3.tsv  train_ground_truth.tsv
+└── test/   test_source1.tsv   test_source2.tsv   test_source3.tsv
+```
+
+Each source file has the columns `entity_id`, `business_name`, `business_address` and `country`.
+The ground truth has `source1_entity_id` and `matched_entity_ids` (comma separated). About 2.2M
+Source 1 entities and 10.3M Source 2 / Source 3 records in train, and 1.7M and 10M in test.
 
 ## Requirements
 
-- Linux, Python 3.12, one NVIDIA GPU with at least 40 GB memory (tested on an H100 80 GB), about
-  100 GB RAM, about 150 GB free disk for intermediate files.
-- [uv](https://docs.astral.sh/uv/) for the Python environment.
-- Internet access once, to download two pretrained models from Hugging Face:
-  `intfloat/multilingual-e5-small` (MIT) and `microsoft/mdeberta-v3-base` (MIT).
-  No other external data is used.
+- Linux, Python 3.12, one NVIDIA GPU with at least 40 GB of memory (built on an H100 80 GB).
+- About 100 GB of RAM and 150 GB of free disk for intermediate files.
+- [uv](https://docs.astral.sh/uv/) for the environment.
+- Internet access once, to download two models from Hugging Face:
+  `intfloat/multilingual-e5-small` and `microsoft/mdeberta-v3-base` (both MIT).
 
 ## Setup
 
 ```bash
-cd business_entity_resolution
+git clone https://github.com/ArneshBanerjee/amazon-ml-challenge-2026-entity-resolution.git
+cd amazon-ml-challenge-2026-entity-resolution
 uv venv --python 3.12 .venv
 uv pip install --python .venv/bin/python -r requirements.txt \
     --extra-index-url https://download.pytorch.org/whl/cu126 --index-strategy unsafe-best-match
@@ -24,58 +94,75 @@ uv pip install --python .venv/bin/python -r requirements.txt \
 
 ## Run
 
-The submitted files come from two independent runs of the pipeline: for countries present in train the
-stage-2 scores of both runs are averaged; for countries without labels (France) the rows of run 1 are
-kept (see `splice.py` and the documentation for why):
+The final output (two runs, averaged):
 
 ```bash
-cd business_entity_resolution
-PY=$PWD/.venv/bin/python bash src/run_ensemble.sh /path/to/student_resource/dataset /path/to/output
+PY=$PWD/.venv/bin/python bash src/run_ensemble.sh /path/to/dataset /path/to/output
 ```
 
-A single run (about half the time, holdout F0.5 about 0.0002 lower) is:
+A single run takes about half the time and scores about 0.0002 lower on the holdout:
 
 ```bash
-PY=$PWD/.venv/bin/python bash src/run_all.sh /path/to/student_resource/dataset /path/to/output
+PY=$PWD/.venv/bin/python bash src/run_all.sh /path/to/dataset /path/to/output
 ```
 
-The dataset folder must contain `train/` and `test/` with the original TSV files. The two result
-files are written to the output folder (default `business_entity_resolution/output`).
-Intermediate files go to `business_entity_resolution/artifacts/`. Every stage skips work whose
-output already exists, so after an interruption the same command continues where it stopped.
-One run takes about 8 to 10 hours on one H100 (most of it is transformer training and inference).
-LightGBM uses all cores but two by default; set `BER_THREADS` to change that. The folder
-`artifacts/output_before_unlabeled_step/` also gets the two files as they are before the step for
-countries without labels.
+Both write `matching_results.tsv` and `candidate_pairs.tsv` to the output folder. One run takes 8 to
+10 hours on one H100, mostly transformer training and inference. Intermediate files go to
+`artifacts/` (and `artifacts_run2/` for the second run). Every stage skips work whose output already
+exists, so after an interruption the same command continues where it stopped.
 
-To check the files with the official validator:
+Settings:
 
-```bash
-cd /path/to/student_resource
-python3 utils/validate_submission.py --matching /path/to/output/matching_results.tsv \
-    --candidate /path/to/output/candidate_pairs.tsv --test-dir dataset/test
-```
+| Variable | Meaning |
+|---|---|
+| `BER_DATA` | dataset folder (set by the run scripts from the first argument) |
+| `BER_ART` | folder for intermediate files |
+| `BER_SEED` | run seed (0 for the first run, 1 for the second) |
+| `BER_THREADS` | LightGBM threads, default all cores but two |
 
-## Stages (all in `src/`)
+LightGBM becomes very slow when another process uses some of the cores it expects, so keep other
+heavy jobs off the machine or lower `BER_THREADS`.
+
+## Code
+
+All code is in `src/`.
 
 | Script | What it does |
 |---|---|
 | `load.py` | Reads the TSVs with every column as a string, checks row counts, stores parquet. |
-| `splits.py` | Splits train S1 entities by country into A (80%, neural models), B (10%, stacker), C1 (8%, tuning) and C2 (2%, untouched check). |
-| `normalize.py` | Transliteration (anyascii), junk removal, legal forms, alias names (dba, t/a, formerly), domains, address cleanup. Mines alias maps (native script words, state and street abbreviations) from split-A true pairs. |
-| `train_biencoder.py`, `encode.py`, `knn.py` | Fine-tunes `multilingual-e5-small` as a bi-encoder (two rounds, the second with mined hard negatives and name-only / address-only views), encodes all records, exact GPU kNN inside each country string in both directions. |
-| `block.py`, `prune.py` | Candidate union (4 kNN views + acronym and domain keys), then a LightGBM pruning model. Its output is `candidate_pairs.tsv`. |
-| `features.py`, `featurize.py` | String features (rapidfuzz), idf overlaps, number and word-swap signals, rank and gap context. |
-| `cross.py` | Cross-encoders (`mdeberta-v3-base`) on normalized and on raw text, trained on split-A candidate pairs. |
-| `stack.py`, `group.py` | Two-stage LightGBM stacker trained on split B (4-fold, out-of-fold predictions). Stage 2 adds group features: agreement of a record with the other confident records of the same S1. |
-| `pseudo.py` | For test countries without labels (France): takes confident test pairs from the first pass and mines address maps (optional region and department components, spelling aliases) with the same miner used on train. The test side is then normalized again and scored with the unchanged models. |
-| `ensemble.py` | Averages the stage-2 logits of several runs (a pair missing from a run counts as 1e-4), candidate set = union of the runs' candidate sets. |
-| `splice.py` | Final file: ensemble rows for countries present in train, single-run rows for countries without labels; candidate file = union of both candidate files. |
-| `select_sets.py` | One-to-one assignment (each record goes to at most one S1), isotonic calibration on C1, per-S1 set choice that maximizes expected F0.5, writes both output files. |
-| `evaluate.py` | Exact macro F0.5 (singletons included), blocking recall and candidates per S1. |
-| `analyze.py`, `blockstats.py`, `transfer.py` | Error analysis and checks used during development (not needed for the outputs). |
+| `splits.py` | Splits train entities by country: A (80%, neural models), B (10%, stacker), C1 (8%, tuning), C2 (2%, untouched check). |
+| `normalize.py` | Transliteration, junk removal, legal forms, alias names (dba, t/a, formerly), domains, address cleanup. Mines alias maps from split-A pairs. |
+| `train_biencoder.py`, `encode.py`, `knn.py` | Bi-encoder training (two rounds), encoding of all records, exact GPU kNN in both directions. |
+| `block.py`, `prune.py` | Candidate union (4 kNN views plus acronym and domain keys) and the LightGBM pruning model. |
+| `features.py`, `featurize.py` | Pair features: string scores, idf overlaps, number checks, word-swap signal, rank and gap context. |
+| `cross.py` | The two cross-encoders, trained on split-A candidate pairs. |
+| `stack.py`, `group.py` | Two-stage LightGBM stacker (4-fold on split B) and the group features for stage 2. |
+| `select_sets.py` | One-to-one assignment, calibration, expected-F0.5 set choice, writes both output files. |
+| `ensemble.py`, `splice.py` | Averages the runs, then builds the final file by country. |
+| `pseudo.py` | Optional step for countries without labels (`UNLABELED_STEP=1`), not used for the final output. |
+| `evaluate.py` | Exact macro F0.5 (singletons included), blocking recall and candidates per entity. |
+| `analyze.py`, `blockstats.py`, `transfer.py` | Error analysis and checks, not needed for the outputs. |
 
-See `RESULTS.md` for the leaderboard history, which submission scored best, and open problems.
+## Limitations
 
-Settings such as the data and artifact folders can be changed with the environment variables
-`BER_DATA`, `BER_ART` and `BER_ROOT` (see `src/common.py`).
+- **France.** With no French labels, the models rely on what transfers from US and India. The
+  holdout says about 0.992 for those two countries, and the leaderboard suggests France is closer to
+  0.96. French addresses often drop or swap the region, and French distractor words ("& Fils",
+  "Groupe") differ from the English ones the model learned. `normalize.py` maps the common ones.
+- **Records with no address.** When a record has only a name and several entities share that name,
+  there is not enough information to pick one, so the pipeline predicts nothing for it.
+- **Legal-form distractors.** A copy of a business with an extra "Inc" at the same address looks
+  almost exactly like a normal noisy record, and some of these still get through.
+- **Compute.** The full two-run pipeline needs about 16 to 20 GPU hours.
+
+## Models and licenses
+
+| Component | License |
+|---|---|
+| `intfloat/multilingual-e5-small` (118M parameters) | MIT |
+| `microsoft/mdeberta-v3-base` (278M parameters) | MIT |
+| LightGBM | MIT |
+
+No external data was used: no geocoding, no business registries, no outside datasets.
+
+This code is released under the MIT License (see [LICENSE](LICENSE)).
