@@ -3,7 +3,7 @@
 My solution to the Business Entity Resolution task of the Amazon ML Challenge 2026. The competition
 ran for three days; I gave myself 24 hours, start to finish, on one H100.
 
-Write-up: [Amazon ML Challenge 2026 in a Self-Imposed 24 Hours: 0.988216 F0.5](https://arneshbanerjee.dev/blog/business-entity-resolution.html)
+Write-up: [Amazon ML Challenge 2026 in a Self-Imposed 24 Hours: 0.988216 F0.5](https://arneshbanerjee.dev/blog/amazon-ml-challenge-2026.html)
 
 The task: business records come from three independent sources with no shared IDs. Source 1 is a
 clean reference list. For every Source 1 business, find every record in Source 2 and Source 3 that
