@@ -1,6 +1,9 @@
 # Amazon ML Challenge 2026: Business Entity Resolution
 
-My solution to the Business Entity Resolution task of the Amazon ML Challenge 2026.
+My solution to the Business Entity Resolution task of the Amazon ML Challenge 2026. The competition
+ran for three days; I gave myself 24 hours, start to finish, on one H100.
+
+Write-up: [24 Hours, 10 Million Records](https://arneshbanerjee.dev/blog/business-entity-resolution.html)
 
 The task: business records come from three independent sources with no shared IDs. Source 1 is a
 clean reference list. For every Source 1 business, find every record in Source 2 and Source 3 that
@@ -16,13 +19,13 @@ missed one. The size of the candidate set produced by blocking was also part of 
 
 | | Score |
 |---|---|
-| Public leaderboard, macro F0.5 | **0.9881** |
+| Final overall score, macro F0.5 | **0.988216** |
 | Holdout (train entities never used for training), tuning part | 0.99254 |
 | Holdout, untouched part | 0.99219 |
 | Blocking recall on the holdout, one run | 99.82% of true pairs, 5.8 candidates per entity |
 
 The holdout covers US and India only, since France has no labels. The gap between the holdout and
-the leaderboard is mostly France (see [Limitations](#limitations)).
+the final score is mostly France (see [Limitations](#limitations)).
 
 ## How it works
 
