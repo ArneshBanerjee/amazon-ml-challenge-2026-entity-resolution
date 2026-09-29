@@ -1,7 +1,7 @@
 # Amazon ML Challenge 2026: Business Entity Resolution
 
 My solution to the Business Entity Resolution task of the Amazon ML Challenge 2026. The competition
-ran for three days; I gave myself 24 hours, start to finish, on one H100.
+ran for three days; I gave myself 24 hours, start to finish.
 
 Write-up: [Amazon ML Challenge 2026 in a Self-Imposed 24 Hours: 0.988216 F0.5](https://arneshbanerjee.dev/blog/amazon-ml-challenge-2026.html)
 
@@ -79,7 +79,7 @@ Source 1 entities and 10.3M Source 2 / Source 3 records in train, and 1.7M and 1
 
 ## Requirements
 
-- Linux, Python 3.12, one NVIDIA GPU with at least 40 GB of memory (built on an H100 80 GB).
+- Linux, Python 3.12, one NVIDIA GPU with at least 40 GB of memory.
 - About 100 GB of RAM and 150 GB of free disk for intermediate files.
 - [uv](https://docs.astral.sh/uv/) for the environment.
 - Internet access once, to download two models from Hugging Face:
@@ -110,7 +110,7 @@ PY=$PWD/.venv/bin/python bash src/run_all.sh /path/to/dataset /path/to/output
 ```
 
 Both write `matching_results.tsv` and `candidate_pairs.tsv` to the output folder. One run takes 8 to
-10 hours on one H100, mostly transformer training and inference. Intermediate files go to
+10 hours on one GPU, mostly transformer training and inference. Intermediate files go to
 `artifacts/` (and `artifacts_run2/` for the second run). Every stage skips work whose output already
 exists, so after an interruption the same command continues where it stopped.
 

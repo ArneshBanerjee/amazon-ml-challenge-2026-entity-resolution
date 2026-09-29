@@ -63,7 +63,7 @@ features (worse US to India transfer), adding stacker variants to the two-run en
 
 ## Practical notes
 
-- One run of `run_all.sh` takes 8 to 10 hours on one H100; `run_ensemble.sh` runs it twice.
+- One run of `run_all.sh` takes 8 to 10 hours on one GPU; `run_ensemble.sh` runs it twice.
 - LightGBM becomes about 40 times slower when another job uses some CPU cores and LightGBM uses all of
   them. The default is now all cores but two (`BER_THREADS`).
 - transformers 5 loads mdeberta-v3 in fp16 by default; training it that way gives NaN. The code loads
