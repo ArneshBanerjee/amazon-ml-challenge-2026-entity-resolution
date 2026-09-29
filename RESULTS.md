@@ -64,11 +64,11 @@ features (worse US to India transfer), adding stacker variants to the two-run en
 ## Practical notes
 
 - One run of `run_all.sh` takes 8 to 10 hours on one GPU; `run_ensemble.sh` runs it twice.
-- LightGBM becomes about 40 times slower when another job uses some CPU cores and LightGBM uses all of
-  them. The default is now all cores but two (`BER_THREADS`).
+- LightGBM becomes up to 40 times slower when its threads have to compete for CPU cores. The default
+  is all cores but two (`BER_THREADS`).
 - transformers 5 loads mdeberta-v3 in fp16 by default; training it that way gives NaN. The code loads
   it in fp32 and trains with bf16 autocast.
 - Multiprocess DataLoader workers deadlocked after polars had started its threads; tokenization runs in
   a thread pool instead (`common.prefetch`).
-- Keep other GPU users in mind: cosine computations keep embeddings in CPU memory and move chunks to
-  the GPU, which avoids out-of-memory errors when the GPU is shared.
+- Cosine computations keep embeddings in CPU memory and move chunks to the GPU, which keeps GPU
+  memory use low.

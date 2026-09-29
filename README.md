@@ -82,7 +82,7 @@ Source 1 entities and 10.3M Source 2 / Source 3 records in train, and 1.7M and 1
 - Linux, Python 3.12, one NVIDIA GPU with at least 40 GB of memory.
 - About 100 GB of RAM and 150 GB of free disk for intermediate files.
 - [uv](https://docs.astral.sh/uv/) for the environment.
-- Internet access once, to download two models from Hugging Face:
+- Internet access once, to download two pretrained models:
   `intfloat/multilingual-e5-small` and `microsoft/mdeberta-v3-base` (both MIT).
 
 ## Setup
@@ -123,8 +123,8 @@ Settings:
 | `BER_SEED` | run seed (0 for the first run, 1 for the second) |
 | `BER_THREADS` | LightGBM threads, default all cores but two |
 
-LightGBM becomes very slow when another process uses some of the cores it expects, so keep other
-heavy jobs off the machine or lower `BER_THREADS`.
+LightGBM slows down sharply when its threads have to compete for CPU cores, which is why it leaves
+two cores free by default. Lower `BER_THREADS` if the machine has fewer cores to spare.
 
 ## Code
 

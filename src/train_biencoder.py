@@ -2,7 +2,7 @@
 
 Loss: symmetric InfoNCE (MultipleNegativesRankingLoss style) with a learned-free fixed scale.
 Batches hold one country and unique S1 entities, so in-batch negatives are never true matches.
-Output: artifacts/models/<out>/ (HF format, used by encode.py with mean pooling)
+Output: artifacts/models/<out>/ (transformers format, used by encode.py with mean pooling)
 """
 import argparse
 import json

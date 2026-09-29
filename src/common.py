@@ -35,7 +35,7 @@ def done(path, force=False):
 def prefetch(fn, items, threads=6, depth=16):
     """Yield fn(item) for items in order, computed ahead in a thread pool.
 
-    Used for tokenization: HF fast tokenizers release the GIL, so threads overlap with GPU work
+    Used for tokenization: fast (Rust) tokenizers release the GIL, so threads overlap with GPU work
     without the fork problems of multiprocess DataLoader workers.
     """
     from collections import deque
